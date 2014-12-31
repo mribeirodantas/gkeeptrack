@@ -16,7 +16,7 @@ c.execute("""
 c.execute("""
     CREATE TABLE actions(
         app_id_fk INTEGER,
-        action TEXT,
+        action,
         timestamp integer(4) not null default (strftime('%s','now')),
         FOREIGN KEY(app_id_fk) REFERENCES applications(app_id)
     )""")
