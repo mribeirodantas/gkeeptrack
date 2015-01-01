@@ -5,16 +5,16 @@ import os
 import errno
 
 
-def install(gtt_path):
-    # Create gtimetracker configuration directory
+def install(gkt_path):
+    # Create gkeeptrack configuration directory
     try:
-        os.makedirs(gtt_path)
+        os.makedirs(gkt_path)
     except OSError as exception:
         if exception.errno != errno.EEXIST:
             raise
-    # Change to $HOME/.gtimetracker/
+    # Change to $HOME/.gkeeptrack/
     try:
-        os.chdir(gtt_path)
+        os.chdir(gkt_path)
     except OSError as exception:
         if exception.errno != errno.EEXIST:
             raise
@@ -24,23 +24,23 @@ def install(gtt_path):
     except OSError as exception:
         if exception.errno != errno.EEXIST:
             raise
-    # Change to $HOME/.gtimetracker/data/
+    # Change to $HOME/.gkeeptrack/data/
     try:
         os.chdir('data')
     except OSError as exception:
         if exception.errno != errno.EEXIST:
             raise
-    if os.path.exists('gtt.db'):
+    if os.path.exists('gkt.db'):
         print("There is already a database configured. Override?[y/n]")
         choice = raw_input().lower()
         if choice == 'n':
             print("Leaving setup...")
             exit()
 
-    if os.path.exists('gtt.db'):
-        os.remove('gtt.db')
+    if os.path.exists('gkt.db'):
+        os.remove('gkt.db')
     print("Creating database...")
-    conn = sqlite3.connect('gtt.db')
+    conn = sqlite3.connect('gkt.db')
     c = conn.cursor()
 
     # Create tables
@@ -67,16 +67,16 @@ def install(gtt_path):
     print("Installation is done.")
 
 if __name__ == "__main__":
-    gtt_path = os.getenv("HOME") + "/.gtimetracker/"
-    # Is GTimeTracker already installed?
-    if os.path.isdir(gtt_path):
-        print("It seems you already have a GTimeTracker installation in")
+    gkt_path = os.getenv("HOME") + "/.gkeeptrack/"
+    # Is GKeepTrack already installed?
+    if os.path.isdir(gkt_path):
+        print("It seems you already have a GKeepTrack installation in")
         print("in your system. Do you still want to proceed? (y/n)")
         choice = raw_input().lower()
         if choice == 'y':
-            install(gtt_path)
+            install(gkt_path)
         else:
             print("Leaving setup...")
             exit()
     else:
-        install(gtt_path)
+        install(gkt_path)

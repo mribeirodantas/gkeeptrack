@@ -5,10 +5,11 @@ import gtk
 import time
 import datetime
 import sqlite3
+import os
 
 # Preparing database connection
-
-conn = sqlite3.connect('by.db')
+gtt_path = os.getenv('HOME') + '/.gkeeptrack'
+conn = sqlite3.connect(gtt_path+'/data/gtt.db')
 conn.text_factory = str
 c = conn.cursor()
 
