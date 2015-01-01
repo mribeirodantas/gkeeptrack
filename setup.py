@@ -18,6 +18,12 @@ def install(gkt_path):
     except OSError as exception:
         if exception.errno != errno.EEXIST:
             raise
+    # Creating projects directory
+    try:
+        os.makedirs('projects')
+    except OSError as exception:
+        if exception.errno != errno.EEXIST:
+            raise
     # Creating data directory
     try:
         os.makedirs('data')
@@ -64,6 +70,30 @@ def install(gkt_path):
 
     # Closing connection
     conn.close()
+    print("Finished database configuration.")
+    print("Do you want to create a project now?")
+    print("You can still do it later. [y/n]")
+    choice = raw_input().lower()
+    if choice == 'y':
+        print("What is the name of your project?")
+        project_name = raw_input().lower()
+        print("Creating %s...") % project_name
+        # Change to $HOME/.gkeeptrack/projects/
+        try:
+            os.chdir(gkt_path + '/projects')
+        except OSError as exception:
+            if exception.errno != errno.EEXIST:
+                raise
+        # Create project file configuration
+        if os.path.exists(project_name):
+            print("Project " + project_name + " already exists. Skipping...")
+        else:
+            try:
+                expression = 'touch ' + project_name
+                os.system(expression)
+            except OSError as exception:
+                if exception.errno != errno.EEXIST:
+                    raise
     print("Installation is done.")
 
 if __name__ == "__main__":
