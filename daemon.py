@@ -9,7 +9,7 @@ import os
 
 # Preparing database connection
 gtt_path = os.getenv('HOME') + '/.gkeeptrack'
-conn = sqlite3.connect(gtt_path+'/data/gtt.db')
+conn = sqlite3.connect(gtt_path+'/data/gkt.db')
 conn.text_factory = str
 c = conn.cursor()
 
