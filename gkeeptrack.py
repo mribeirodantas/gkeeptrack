@@ -1,17 +1,19 @@
 #!/usr/bin/env python
-from gi.repository import Gtk, Gio, Gdk
+
+import errno
 from os import listdir
 from os.path import isfile, join
-import errno
+from gi.repository import Gtk, Gio, Gdk, Notify
 
 VERSION = '0.1'
-mypath = '/home/mribeirodantas/.gkeeptrack/projects/'
+path = '/home/mribeirodantas/.gkeeptrack/projects/'
 
 
 class ListBoxWindow(Gtk.Window):
 
     track_titles = False
     track_time_per_app = False
+    project_name = None
 
     def __init__(self):
 
@@ -68,7 +70,7 @@ class ListBoxWindow(Gtk.Window):
         label = Gtk.Label("Choose a Project", xalign=0)
         combo = Gtk.ComboBoxText()
         try:
-            files = [f for f in listdir(mypath) if isfile(join(mypath,f))]
+            files = [f for f in listdir(path) if isfile(join(path, f))]
         except OSError as exception:
             if exception.errno != errno.EEXIST:
                 print("You have a problematic installation.")
@@ -83,6 +85,7 @@ class ListBoxWindow(Gtk.Window):
                 combo.insert(int(index), str(index), str(file))
         hbox.pack_start(label, True, True, 0)
         hbox.pack_start(combo, False, True, 0)
+        combo.connect("changed", self.combo_changed)
 
         listbox.add(row)
 
@@ -121,12 +124,45 @@ class ListBoxWindow(Gtk.Window):
             self.track_time_per_app = True
             print("Tracking time per app")
 
+    def combo_changed(self, combo):
+        self.project_name = combo.get_active_text()
+
     def start_tracking(self, widget, is_active):
         if widget.get_state() is False:
             print("Starting tracking")
             # ./daemon.py "name of the project"
+            # Creates .tracking (lock_file) in GKT_PATH
+            # Notification for when the dialog was not closed
+            Notify.init("GTimeTrack")
+            if self.project_name is None:
+                message = "Tracking started."
+            else:
+                message = "Tracking of project " + self.project_name\
+                          + " just started."
+            Stop = Notify.Notification.new("GTimeTrack",
+                                           message,
+                                           "dialog-information")
+            Stop.connect('closed', Gtk.main_quit)
+            Stop.show()
+            Gtk.main()
+
         else:
             print("Stopping tracking")
+            # Removes .tracking (lock_file) in GKTPATH
+            # Sends a signal to daemon.py to stop
+            # Notification for when the dialog was not closed
+            Notify.init("GTimeTrack")
+            if self.project_name is None:
+                message = "Tracking stopped."
+            else:
+                message = "Tracking of project " + self.project_name\
+                          + " just stopped."
+            Stop = Notify.Notification.new("GTimeTrack",
+                                           message,
+                                           "dialog-information")
+            Stop.connect('closed', Gtk.main_quit)
+            Stop.show()
+            Gtk.main()
 
 win = ListBoxWindow()
 win.connect("delete-event", Gtk.main_quit)

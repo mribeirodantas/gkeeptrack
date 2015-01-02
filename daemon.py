@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-from settings import GKT_PATH, DB_NAME
-import datetime
-import sqlite3
-import wnck
-import time
-import gtk
-import sys
 import os
+import sys
+import gtk
+import time
+import wnck
+import sqlite3
+import datetime
+from settings import GKT_PATH, DB_NAME
 
 # Preparing database connection
 conn = sqlite3.connect(GKT_PATH+'data/'+DB_NAME)
