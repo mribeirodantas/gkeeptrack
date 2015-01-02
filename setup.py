@@ -50,7 +50,7 @@ def install(GKT_PATH):
 
         # Create tables
         print("Creating tables...")
-        # Projects
+        # Projects table
         c.execute("""
             CREATE TABLE projects(
                 project_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,7 +58,7 @@ def install(GKT_PATH):
             )""")
         # Inserting project 'default' for when there is no project specified
         c.execute("INSERT INTO projects(project_name) VALUES ('default')")
-        # Applications
+        # Applications table
         c.execute("""
             CREATE TABLE applications(
                 app_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -66,7 +66,7 @@ def install(GKT_PATH):
                 app_name TEXT NOT NULL,
                 FOREIGN KEY(project_id_fk) REFERENCES projects(project_id)
             )""")
-        # Actions
+        # Actions table
         c.execute("""
             CREATE TABLE actions(
                 app_id_fk INTEGER NOT NULL,
@@ -113,7 +113,8 @@ def add_new_project(project_name):
                 raise
         conn = sqlite3.connect(GKT_PATH + 'data/' + DB_NAME)
         c = conn.cursor()
-        c.execute("INSERT INTO projects(project_name) VALUES (?)", [project_name])
+        c.execute("INSERT INTO projects(project_name) VALUES (?)",
+                  [project_name])
         conn.commit()
         conn.close()
 
