@@ -1,19 +1,33 @@
 #!/usr/bin/env python
 
-import wnck
-import gtk
-import time
+from settings import GKT_PATH, DB_NAME
 import datetime
 import sqlite3
+import wnck
+import time
+import gtk
+import sys
 import os
 
 # Preparing database connection
-gtt_path = os.getenv('HOME') + '/.gkeeptrack'
-conn = sqlite3.connect(gtt_path+'/data/gkt.db')
+conn = sqlite3.connect(GKT_PATH+'data/'+DB_NAME)
 conn.text_factory = str
 c = conn.cursor()
 
 previous_active_window = None
+
+if len(sys.argv) > 1:
+    project_name = sys.argv[1]
+    sql_statement = c.execute("SELECT project_id FROM projects\
+                              WHERE project_name=?", [project_name])
+    project_id = sql_statement.fetchone()[0]
+    # If it exists
+    if project_id is None:
+        print("There is no project named %s") % project_name
+        exit()
+else:
+    project_id = 1
+    project_name = "default"
 
 while True:
     default_screen = wnck.screen_get_default()
@@ -31,7 +45,8 @@ while True:
                 # Check if it is registered in applications table
                 window_app_name = window.get_application().get_name()
                 sql_statement = c.execute("SELECT app_name FROM applications\
-                                          WHERE app_name=?", [window_app_name])
+                                          WHERE app_name=? AND project_id_fk=?",
+                                          (window_app_name, str(project_id)))
                 returned_app_name = sql_statement.fetchone()
                 # If is already registered
                 if returned_app_name is not None:
@@ -47,8 +62,10 @@ while True:
                         app_id = sql_statement.fetchone()
                         # Register unfocus action
                         action = "Unfocus"
-                        c.execute("INSERT INTO actions(app_id_fk, action)\
-                                  VALUES (?, ?)", (app_id[0], action))
+                        c.execute("INSERT INTO actions(app_id_fk, project_id_fk,\
+                                  action) VALUES (?, ?, ?)", (app_id[0],
+                                                              str(project_id),
+                                                              action))
                     # Or is this the current one?
                     elif window == current_active_window:
                         # Get app id
@@ -59,14 +76,17 @@ while True:
                         app_id = sql_statement.fetchone()
                         # Register focus action
                         action = "Focus"
-                        c.execute("INSERT INTO actions(app_id_fk, action)\
-                                  VALUES (?, ?)", (app_id[0], action))
+                        c.execute("INSERT INTO actions(app_id_fk, project_id_fk,\
+                                  action) VALUES (?, ?, ?)", (app_id[0],
+                                                              str(project_id),
+                                                              action))
                     else:
                         pass  # Do nothing
                 # It is not yet registered
                 else:
-                    c.execute("INSERT INTO applications(app_name)\
-                               VALUES (?)", [window_app_name])
+                    c.execute("INSERT INTO applications(app_name,\
+                              project_id_fk) VALUES (?, ?)", [window_app_name,
+                                                              str(project_id)])
                     # Committing changes
             conn.commit()
             previous_active_window = current_active_window

@@ -124,6 +124,7 @@ class ListBoxWindow(Gtk.Window):
     def start_tracking(self, widget, is_active):
         if widget.get_state() is False:
             print("Starting tracking")
+            # ./daemon.py "name of the project"
         else:
             print("Stopping tracking")
 
