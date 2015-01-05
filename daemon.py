@@ -1,99 +1,133 @@
-#!/usr/bin/env python
-
-import os
 import sys
-import gtk
+import os
 import time
-import wnck
-import sqlite3
-import datetime
-from settings import GKT_PATH, DB_NAME
+import atexit
+import signal
+import logging
 
-# Preparing database connection
-conn = sqlite3.connect(GKT_PATH+'data/'+DB_NAME)
-conn.text_factory = str
-c = conn.cursor()
 
-previous_active_window = 'None'  # Window that has just lost focus
-# daemon.py [project-name]
-if len(sys.argv) > 1:
-    project_name = sys.argv[1]
-    # Is there a project named project-name?
-    sql_statement = c.execute("SELECT project_id FROM projects\
-                              WHERE project_name=?", [project_name])
-    project_id = sql_statement.fetchone()
-    # If there is no project named project-name
-    if project_id is None:
-        print("There is no project named %s") % project_name
-        exit()
-# No project name was informed
-else:
-    project_id = 1
-    project_name = "default"
+class Daemon:
+    """A generic daemon class.
 
-while True:
-    default_screen = wnck.screen_get_default()
-    current_active_window = default_screen.get_active_window()
-    # Changed window focus
-    if current_active_window != previous_active_window:
-        # Update list of windows (maybe a new window?)
-        window_list = default_screen.get_windows()
-        # If no windows are opened
-        # if len(window_list) == 0:
-        #     pass
-        # # If there are windows opened
-        # else:
-        if True:
-            for window in window_list:
-                # Check if it is registered in applications table
-                window_app_name = window.get_application().get_name()
-                sql_statement = c.execute("SELECT app_name FROM applications\
-                                          WHERE app_name=? AND project_id_fk=?",
-                                          (window_app_name, str(project_id)))
-                returned_app_name = sql_statement.fetchone()
-                # If is already registered
-                if returned_app_name is not None:
-                    # Insert "unfocus" action for the previous window
-                    if window == previous_active_window:
-                        # Get previous window name
-                        previous_win_app = window.get_application()
-                        previous_window_app_name = previous_win_app.get_name()
-                        # Get app id
-                        sql_statement = c.execute("SELECT app_id FROM\
-                                                  applications\
-                                                  WHERE app_name=?",
-                                                  [previous_window_app_name])
-                        app_id = sql_statement.fetchone()
-                        # Register unfocus action
-                        action = "Unfocus"
-                        c.execute("INSERT INTO actions(app_id_fk, project_id_fk,\
-                                  action) VALUES (?, ?, ?)", (app_id[0],
-                                                              str(project_id),
-                                                              action))
-                    # Insert "focus" action for the current window
-                    elif window == current_active_window:
-                        # Get app id
-                        sql_statement = c.execute("SELECT app_id FROM\
-                                                  applications\
-                                                  WHERE app_name=?",
-                                                  [window_app_name])
-                        app_id = sql_statement.fetchone()
-                        # Register focus action
-                        action = "Focus"
-                        c.execute("INSERT INTO actions(app_id_fk, project_id_fk,\
-                                  action) VALUES (?, ?, ?)", (app_id[0],
-                                                              str(project_id),
-                                                              action))
-                    else:
-                        pass  # Do nothing for non-previous/current windows
-                # It is not yet registered
-                else:
-                    c.execute("INSERT INTO applications(app_name,\
-                              project_id_fk) VALUES (?, ?)", [window_app_name,
-                                                              str(project_id)])
-            # Committing changes
-            conn.commit()
-            # For the next focus change, the previous will be the current one
-            previous_active_window = current_active_window
-    gtk.events_pending()
-    gtk.main_iteration()
+    Usage: subclass the daemon class and override the run() method."""
+
+    def __init__(self, pidfile, logfile, format):
+        self.pidfile = pidfile
+        self.logfile = logfile
+        self.log_format = format
+        logging.basicConfig(filename=logfile,
+                            level=logging.DEBUG,
+                            format=format,
+                            datefmt='%m/%d/%Y %I:%M:%S %p')
+
+    def daemonize(self):
+        """Deamonize class. UNIX double fork mechanism."""
+
+        try:
+            pid = os.fork()
+            if pid > 0:
+                # exit first parent
+                sys.exit(0)
+        except OSError as err:
+            sys.stderr.write('fork #1 failed: {0}\n'.format(err))
+            sys.exit(1)
+
+        # decouple from parent environment
+        os.chdir('/')
+        os.setsid()
+        os.umask(0)
+
+        # do second fork
+        try:
+            pid = os.fork()
+            if pid > 0:
+
+                # exit from second parent
+                sys.exit(0)
+        except OSError as err:
+            sys.stderr.write('fork #2 failed: {0}\n'.format(err))
+            sys.exit(1)
+
+        # redirect standard file descriptors
+        sys.stdout.flush()
+        sys.stderr.flush()
+        si = open(os.devnull, 'r')
+        so = open(os.devnull, 'a+')
+        se = open(os.devnull, 'a+')
+
+        os.dup2(si.fileno(), sys.stdin.fileno())
+        os.dup2(so.fileno(), sys.stdout.fileno())
+        os.dup2(se.fileno(), sys.stderr.fileno())
+
+        # write pidfile
+        atexit.register(self.delpid)
+
+        pid = str(os.getpid())
+        with open(self.pidfile, 'w+') as f:
+            f.write(pid + '\n')
+            logging.info('daemon started')
+
+    def delpid(self):
+        os.remove(self.pidfile)
+
+    def start(self):
+        """Start the daemon."""
+
+        # Check for a pidfile to see if the daemon already runs
+        try:
+            with open(self.pidfile, 'r') as pf:
+                pid = int(pf.read().strip())
+        except IOError:
+            pid = None
+
+        if pid:
+            message = "pidfile {0} already exist. " + \
+                      "Daemon already running?\n"
+            sys.stderr.write(message.format(self.pidfile))
+            sys.exit(1)
+
+        # Start the daemon
+        self.daemonize()
+        self.run()
+
+    def stop(self):
+        """Stop the daemon."""
+
+        # Get the pid from the pidfile
+        try:
+            with open(self.pidfile, 'r') as pf:
+                pid = int(pf.read().strip())
+        except IOError:
+            pid = None
+
+        if not pid:
+            message = "pidfile {0} does not exist. " + \
+                      "Daemon not running?\n"
+            sys.stderr.write(message.format(self.pidfile))
+            return  # not an error in a restart
+
+        # Try killing the daemon process
+        try:
+            while 1:
+                os.kill(pid, signal.SIGTERM)
+                time.sleep(0.1)
+        except OSError as err:
+            e = str(err.args)
+            if e.find("No such process") > 0:
+                if os.path.exists(self.pidfile):
+                    os.remove(self.pidfile)
+                    logging.info('daemon stopped')
+            else:
+                print (str(err.args))
+                sys.exit(1)
+
+    def restart(self):
+        """Restart the daemon."""
+        self.stop()
+        self.start()
+
+    def run(self):
+        """You should override this method when you subclass Daemon.
+
+        It will be called after the process has been daemonized by
+        start() or restart()."""

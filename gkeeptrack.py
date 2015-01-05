@@ -1,170 +1,99 @@
 #!/usr/bin/env python
 
-import errno
-from os import listdir
-from os.path import isfile, join
-from gi.repository import Gtk, Gio, Gdk, Notify
+import os
+import sys
+import gtk
+import time
+import wnck
+import sqlite3
+import datetime
+from settings import GKT_PATH, DB_NAME
 
-VERSION = '0.1'
-path = '/home/mribeirodantas/.gkeeptrack/projects/'
+# Preparing database connection
+conn = sqlite3.connect(GKT_PATH+'data/'+DB_NAME)
+conn.text_factory = str
+c = conn.cursor()
 
+previous_active_window = 'None'  # Window that has just lost focus
+# daemon.py [project-name]
+if len(sys.argv) > 1:
+    project_name = sys.argv[1]
+    # Is there a project named project-name?
+    sql_statement = c.execute("SELECT project_id FROM projects\
+                              WHERE project_name=?", [project_name])
+    project_id = sql_statement.fetchone()
+    # If there is no project named project-name
+    if project_id is None:
+        print("There is no project named %s") % project_name
+        exit()
+# No project name was informed
+else:
+    project_id = 1
+    project_name = "default"
 
-class ListBoxWindow(Gtk.Window):
-
-    track_titles = False
-    track_time_per_app = False
-    project_name = None
-
-    def __init__(self):
-
-        Gtk.Window.__init__(self, title="GKeepTrack")
-        self.set_default_size(400, 200)
-        self.set_border_width(10)
-
-        hb = Gtk.HeaderBar()
-        hb.set_show_close_button(True)
-        hb.props.title = "GKeepTrack"
-        self.set_titlebar(hb)
-
-        button = Gtk.Button()
-        button.connect("clicked", self.add_project)
-        icon = Gio.ThemedIcon(name="list-add")
-        image = Gtk.Image.new_from_gicon(icon, Gtk.IconSize.BUTTON)
-        button.add(image)
-        hb.pack_end(button)
-
-        hbox = Gtk.Box(spacing=6)
-        self.add(hbox)
-
-        listbox = Gtk.ListBox()
-        listbox.set_selection_mode(Gtk.SelectionMode.NONE)
-        listbox.override_background_color(Gtk.StateType.NORMAL,
-                                          Gdk.RGBA(.0, .0, .0, .0))
-        hbox.pack_start(listbox, True, True, 0)
-
-        row = Gtk.ListBoxRow()
-        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
-        row.add(hbox)
-        label = Gtk.Label("Track Window Titles", xalign=0)
-        check = Gtk.CheckButton()
-        check.connect("toggled", self.track_window_titles)
-        hbox.pack_start(label, True, True, 0)
-        hbox.pack_start(check, False, True, 0)
-
-        listbox.add(row)
-
-        row = Gtk.ListBoxRow()
-        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
-        row.add(hbox)
-        label = Gtk.Label("Track Time per Application", xalign=0)
-        check = Gtk.CheckButton()
-        check.connect("toggled", self.track_time_per_application)
-        hbox.pack_start(label, True, True, 0)
-        hbox.pack_start(check, False, True, 0)
-
-        listbox.add(row)
-
-        row = Gtk.ListBoxRow()
-        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
-        row.add(hbox)
-        label = Gtk.Label("Choose a Project", xalign=0)
-        combo = Gtk.ComboBoxText()
-        try:
-            files = [f for f in listdir(path) if isfile(join(path, f))]
-        except OSError as exception:
-            if exception.errno != errno.EEXIST:
-                print("You have a problematic installation.")
-                print("The projects directory was not found, try reinstalling")
-                exit()
-        if files == []:
-            # combo.insert(0, "0", "None")
-            # Disable it, instead of showing None
-            combo.set_sensitive(False)
-        else:
-            for index, file in enumerate(files):
-                combo.insert(int(index), str(index), str(file))
-        hbox.pack_start(label, True, True, 0)
-        hbox.pack_start(combo, False, True, 0)
-        combo.connect("changed", self.combo_changed)
-
-        listbox.add(row)
-
-        row = Gtk.ListBoxRow()
-        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=50)
-        row.add(hbox)
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        hbox.pack_start(vbox, True, True, 0)
-
-        label1 = Gtk.Label("Tracking", xalign=0)
-        vbox.pack_start(label1, True, True, 0)
-
-        switch = Gtk.Switch()
-        switch.connect("notify::active", self.start_tracking)
-        switch.props.valign = Gtk.Align.CENTER
-        hbox.pack_start(switch, False, True, 0)
-
-        listbox.add(row)
-
-    def add_project(self, widget):
-        print("Adding new project")
-
-    def track_window_titles(self, widget):
-        if self.track_titles is True:
-            self.track_titles = False
-            print("Untracking window titles")
-        else:
-            self.track_titles = True
-            print("Tracking Window Titles")
-
-    def track_time_per_application(self, widget):
-        if self.track_time_per_app is True:
-            self.track_time_per_app = False
-            print("Untracking time per app")
-        else:
-            self.track_time_per_app = True
-            print("Tracking time per app")
-
-    def combo_changed(self, combo):
-        self.project_name = combo.get_active_text()
-
-    def start_tracking(self, widget, is_active):
-        if widget.get_state() is False:
-            print("Starting tracking")
-            # ./daemon.py "name of the project"
-            # Creates .tracking (lock_file) in GKT_PATH
-            # Notification for when the dialog was not closed
-            Notify.init("GTimeTrack")
-            if self.project_name is None:
-                message = "Tracking started."
-            else:
-                message = "Tracking of project " + self.project_name\
-                          + " just started."
-            Stop = Notify.Notification.new("GTimeTrack",
-                                           message,
-                                           "dialog-information")
-            Stop.connect('closed', Gtk.main_quit)
-            Stop.show()
-            Gtk.main()
-
-        else:
-            print("Stopping tracking")
-            # Removes .tracking (lock_file) in GKTPATH
-            # Sends a signal to daemon.py to stop
-            # Notification for when the dialog was not closed
-            Notify.init("GTimeTrack")
-            if self.project_name is None:
-                message = "Tracking stopped."
-            else:
-                message = "Tracking of project " + self.project_name\
-                          + " just stopped."
-            Stop = Notify.Notification.new("GTimeTrack",
-                                           message,
-                                           "dialog-information")
-            Stop.connect('closed', Gtk.main_quit)
-            Stop.show()
-            Gtk.main()
-
-win = ListBoxWindow()
-win.connect("delete-event", Gtk.main_quit)
-win.show_all()
-Gtk.main()
+while True:
+    default_screen = wnck.screen_get_default()
+    current_active_window = default_screen.get_active_window()
+    # Changed window focus
+    if current_active_window != previous_active_window:
+        # Update list of windows (maybe a new window?)
+        window_list = default_screen.get_windows()
+        # If no windows are opened
+        # if len(window_list) == 0:
+        #     pass
+        # # If there are windows opened
+        # else:
+        if True:
+            for window in window_list:
+                # Check if it is registered in applications table
+                window_app_name = window.get_application().get_name()
+                sql_statement = c.execute("SELECT app_name FROM applications\
+                                          WHERE app_name=? AND project_id_fk=?",
+                                          (window_app_name, str(project_id)))
+                returned_app_name = sql_statement.fetchone()
+                # If is already registered
+                if returned_app_name is not None:
+                    # Insert "unfocus" action for the previous window
+                    if window == previous_active_window:
+                        # Get previous window name
+                        previous_win_app = window.get_application()
+                        previous_window_app_name = previous_win_app.get_name()
+                        # Get app id
+                        sql_statement = c.execute("SELECT app_id FROM\
+                                                  applications\
+                                                  WHERE app_name=?",
+                                                  [previous_window_app_name])
+                        app_id = sql_statement.fetchone()
+                        # Register unfocus action
+                        action = "Unfocus"
+                        c.execute("INSERT INTO actions(app_id_fk, project_id_fk,\
+                                  action) VALUES (?, ?, ?)", (app_id[0],
+                                                              str(project_id),
+                                                              action))
+                    # Insert "focus" action for the current window
+                    elif window == current_active_window:
+                        # Get app id
+                        sql_statement = c.execute("SELECT app_id FROM\
+                                                  applications\
+                                                  WHERE app_name=?",
+                                                  [window_app_name])
+                        app_id = sql_statement.fetchone()
+                        # Register focus action
+                        action = "Focus"
+                        c.execute("INSERT INTO actions(app_id_fk, project_id_fk,\
+                                  action) VALUES (?, ?, ?)", (app_id[0],
+                                                              str(project_id),
+                                                              action))
+                    else:
+                        pass  # Do nothing for non-previous/current windows
+                # It is not yet registered
+                else:
+                    c.execute("INSERT INTO applications(app_name,\
+                              project_id_fk) VALUES (?, ?)", [window_app_name,
+                                                              str(project_id)])
+            # Committing changes
+            conn.commit()
+            # For the next focus change, the previous will be the current one
+            previous_active_window = current_active_window
+    gtk.events_pending()
+    gtk.main_iteration()
