@@ -255,7 +255,7 @@ class DaemonClass:
         try:
             # Send a terminate signal to the daemon process
             # This gets trapped by signal_handler() in the daemon
-            #being terminated
+            # being terminated
             os.kill(pid, signal.SIGTERM)
             time.sleep(0.1)
         except OSError, err:

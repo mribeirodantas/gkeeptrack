@@ -44,6 +44,17 @@ class MyDBUSService(dbus.service.Object):
         else:
             return False
 
+    @dbus.service.method('org.gkeeptrack.daemon')
+    def stop_daemon(self):
+        global app
+        try:
+            app = GKeepTrackDaemon(SETTINGS_LINUX)
+            sys.stdout.write("Stopping the daemon...\n")
+            app.stop()
+            return True
+        except Exception:
+            return False
+
 
 class GKeepTrackDaemon(DaemonClass):
     def __init__(self, settings):
@@ -191,13 +202,13 @@ if __name__ == "__main__":
             app = GKeepTrackDaemon(SETTINGS)
             app.status()
         else:
-            print "usage: %s start|stop|restart|status" % sys.argv[0]
+            print("usage: %s start|stop|restart|status", sys.argv[0])
             sys.exit(2)
     else:
-            print "Invalid command: %r" % ' '.join(sys.argv)
-            print "usage: %s start|stop|restart|status" % sys.argv[0]
+            print("Invalid command: %r", ' '.join(sys.argv))
+            print("usage: %s start|stop|restart|status", sys.argv[0])
             sys.exit(2)
 
-    print "...Done"
+    print("...Done")
 
 # end of module

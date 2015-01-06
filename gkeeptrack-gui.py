@@ -2,7 +2,7 @@
 
 import dbus
 import errno
-from os import listdir
+from os import listdir, system
 from os.path import isfile, join
 from gi.repository import Gtk, Gio, Gdk
 
@@ -132,27 +132,44 @@ class ListBoxWindow(Gtk.Window):
         self.project_name = combo.get_active_text()
 
     def start_tracking(self, widget, is_active):
-        if widget.get_active():
-            print("Starting tracking")
-            # ./daemon.py "name of the project"
-            # Creates .tracking (lock_file) in GKT_PATH
-            if self.project_name is None:
-                message = "Tracking started."
-            else:
-                message = "Tracking of project " + self.project_name\
-                          + " just started."
-            print(message)
+        # It may have started OFF, but GUI turned ON and now OFF, e.g.
+        try:
+            bus = dbus.SessionBus()
+            daemon_bus = bus.get_object('org.gkeeptrack.daemon',
+                                        '/org/gkeeptrack/daemon')
+            is_running = daemon_bus.get_dbus_method('is_running',
+                                                    'org.gkeeptrack.daemon')
+            running = is_running()
+        except dbus.exceptions.DBusException:  # No daemon bus
+            running = False
 
-        else:
-            print("Stopping tracking")
-            # Removes .tracking (lock_file) in GKTPATH
-            # Sends a signal to daemon.py to stop
+        if running and widget.get_active() is True:
+            pass
+        elif not running and widget.get_active() is True:
             if self.project_name is None:
-                message = "Tracking stopped."
+                command = './gkeeptrack.py start'
             else:
-                message = "Tracking of project " + self.project_name\
-                          + " just started."
-            print(message)
+                command = './gkeeptrack.py start ' + self.project_name
+            system(command)
+        elif running and widget.get_active() is False:
+            try:
+                bus = dbus.SessionBus()
+                daemon_bus = bus.get_object('org.gkeeptrack.daemon',
+                                            '/org/gkeeptrack/daemon')
+                stop_daemon = daemon_bus.get_dbus_method('stop_daemon',
+                                                         'org.gkeeptrack.daemon')
+                if stop_daemon is True:
+                    print("Daemon stopped successfully")
+                else:
+                    print("Failure: Daemon didn't stop")
+            except dbus.exceptions.DBusException as e:  # No daemon bus
+                if "ServiceUnknown" in str(e):
+                    print("Daemon not running")
+                else:
+                    print("Error: " + str(e))
+        else:
+            print("Running: " + str(running))
+            print("Widget: " + str(widget.get_active()))
 
 if __name__ == "__main__":
     try:
