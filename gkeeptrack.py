@@ -4,12 +4,16 @@ import os
 import sys
 import gtk
 import time
+import dbus
 import wnck
 import sqlite3
 import datetime
 import platform
+import dbus.service
 from daemon import DaemonClass
 from settings import GKT_PATH, DB_NAME
+from dbus.mainloop.glib import DBusGMainLoop
+
 
 SETTINGS_LINUX = {
     'APP':      'gkeeptrack',
@@ -18,6 +22,27 @@ SETTINGS_LINUX = {
 }
 FORMAT = '%(asctime)s [%(levelname)s]: %(message)s'
 __version__ = '1.0'
+
+
+class MyDBUSService(dbus.service.Object):
+    def __init__(self):
+        bus_name = dbus.service.BusName('org.gkeeptrack.daemon',
+                                        bus=dbus.SessionBus())
+        dbus.service.Object.__init__(self, bus_name, '/org/gkeeptrack/daemon')
+
+    @dbus.service.method('org.gkeeptrack.daemon')
+    def is_running(self):
+        if os.path.exists(SETTINGS_LINUX['PIDFILE']):
+            try:
+                pf = file(SETTINGS_LINUX['PIDFILE'],'r')
+                pid = int(pf.read().strip())
+                pf.close()
+                return True
+            except IOError:
+                sys.stdout.write('It is running but couldn\'t read pidfile')
+                return True
+        else:
+            return False
 
 
 class GKeepTrackDaemon(DaemonClass):
@@ -147,6 +172,9 @@ if __name__ == "__main__":
 
     if len(sys.argv) == 2:
         if 'start' == sys.argv[1]:
+            sys.stdout.write("Starting the DBus...\n")
+            DBusGMainLoop(set_as_default=True)
+            dbus_service = MyDBUSService()
             sys.stdout.write("Starting the app...\n")
             app = GKeepTrackDaemon(SETTINGS)
             sys.stdout.write("Starting daemon mode...")

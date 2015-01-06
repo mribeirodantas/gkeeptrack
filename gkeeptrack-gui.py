@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 
+import dbus
 import errno
 from os import listdir
 from os.path import isfile, join
-from gi.repository import Gtk, Gio, Gdk, Notify
+from gi.repository import Gtk, Gio, Gdk
 
 VERSION = '0.1'
 path = '/home/mribeirodantas/.gkeeptrack/projects/'
@@ -102,11 +103,14 @@ class ListBoxWindow(Gtk.Window):
         switch.connect("notify::active", self.start_tracking)
         switch.props.valign = Gtk.Align.CENTER
         hbox.pack_start(switch, False, True, 0)
-
+        if running:
+            switch.set_state(True)
+        else:
+            switch.set_state(False)
         listbox.add(row)
 
     def add_project(self, widget):
-        print("Adding new project")
+        pass
 
     def track_window_titles(self, widget):
         if self.track_titles is True:
@@ -128,43 +132,40 @@ class ListBoxWindow(Gtk.Window):
         self.project_name = combo.get_active_text()
 
     def start_tracking(self, widget, is_active):
-        if widget.get_state() is False:
+        if widget.get_active():
             print("Starting tracking")
             # ./daemon.py "name of the project"
             # Creates .tracking (lock_file) in GKT_PATH
-            # Notification for when the dialog was not closed
-            Notify.init("GTimeTrack")
             if self.project_name is None:
                 message = "Tracking started."
             else:
                 message = "Tracking of project " + self.project_name\
                           + " just started."
-            Stop = Notify.Notification.new("GTimeTrack",
-                                           message,
-                                           "dialog-information")
-            Stop.connect('closed', Gtk.main_quit)
-            Stop.show()
-            Gtk.main()
+            print(message)
 
         else:
             print("Stopping tracking")
             # Removes .tracking (lock_file) in GKTPATH
             # Sends a signal to daemon.py to stop
-            # Notification for when the dialog was not closed
-            Notify.init("GTimeTrack")
             if self.project_name is None:
                 message = "Tracking stopped."
             else:
                 message = "Tracking of project " + self.project_name\
-                          + " just stopped."
-            Stop = Notify.Notification.new("GTimeTrack",
-                                           message,
-                                           "dialog-information")
-            Stop.connect('closed', Gtk.main_quit)
-            Stop.show()
-            Gtk.main()
+                          + " just started."
+            print(message)
 
-win = ListBoxWindow()
-win.connect("delete-event", Gtk.main_quit)
-win.show_all()
-Gtk.main()
+if __name__ == "__main__":
+    try:
+        bus = dbus.SessionBus()
+        daemon_bus = bus.get_object('org.gkeeptrack.daemon',
+                                    '/org/gkeeptrack/daemon')
+        is_running = daemon_bus.get_dbus_method('is_running',
+                                                'org.gkeeptrack.daemon')
+        running = is_running()
+    except dbus.exceptions.DBusException:  # No daemon bus
+        running = False
+
+    win = ListBoxWindow()
+    win.connect("delete-event", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
